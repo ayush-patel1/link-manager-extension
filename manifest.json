@@ -1,0 +1,15 @@
+{
+    "manifest_version":3,
+    "name":"Link Manager- Smart Link Manager",
+    "version":"1.0.0",
+    "description":"Save,manage, and organize your most used Links",
+    "permissions":["storage","activeTab"],
+    "host_permissions":["http://*/*","https://*/*"],
+    "action":{
+        "default_popup":"popup.html",
+        "default_title":"Links Manager"
+    },
+    "background":{
+        "service_worker":"background.js"
+    }
+}
