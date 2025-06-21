@@ -1,15 +1,14 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Links++ Manager</title>
-    <link rel="stylesheet" href="styles.css" />
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Links Manager</title>
+    <link rel="stylesheet" href="styles.css">
 </head>
-
 <body>
     <div class="container">
+        <!-- Header -->
         <header class="header">
             <div class="header-content">
                 <h1 class="logo">
@@ -19,7 +18,6 @@
                 <div class="header-actions">
                     <button id="themeToggle" class="icon-btn" title="Toggle Theme">
                         <span class="theme-icon">🌙</span>
-
                     </button>
                     <button id="settingsBtn" class="icon-btn" title="Settings">
                         <span>⚙️</span>
@@ -27,7 +25,8 @@
                 </div>
             </div>
         </header>
-        <!-- navbar -->
+
+        <!-- Navigation Tabs -->
         <nav class="nav-tabs">
             <button class="tab-btn active" data-tab="links">
                 <span>🔗</span> Links
@@ -39,17 +38,171 @@
                 <span>📊</span> Stats
             </button>
         </nav>
+
         <!-- Links Tab -->
         <div id="linksTab" class="tab-content active">
+            <div class="search-section">
+                <div class="search-container">
+                    <input type="text" id="searchInput" placeholder="Search links..." class="search-input">
+                    <button id="searchBtn" class="search-btn">🔍</button>
+                </div>
+                <select id="categoryFilter" class="category-filter">
+                    <option value="">All Categories</option>
+                    <option value="social">Social Media</option>
+                    <option value="work">Work</option>
+                    <option value="personal">Personal</option>
+                    <option value="tools">Tools</option>
+                    <option value="other">Other</option>
+                </select>
+            </div>
+
+            <!-- Add Link Form -->
             <div class="add-link-section">
                 <button id="toggleAddForm" class="add-btn">
                     <span>+</span> Add New Link
                 </button>
+                <form id="addLinkForm" class="add-form hidden">
+                    <input type="text" id="linkTitle" placeholder="Link Title" required>
+                    <input type="url" id="linkUrl" placeholder="https://example.com" required>
+                    <select id="linkCategory" required>
+                        <option value="">Select Category</option>
+                        <option value="social">Social Media</option>
+                        <option value="work">Work</option>
+                        <option value="personal">Personal</option>
+                        <option value="tools">Tools</option>
+                        <option value="other">Other</option>
+                    </select>
+                    <textarea id="linkDescription" placeholder="Description (optional)"></textarea>
+                    <div class="form-actions">
+                        <button type="submit" class="submit-btn">Add Link</button>
+                        <button type="button" id="cancelAdd" class="cancel-btn">Cancel</button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Links List -->
+            <div id="linksList" class="links-list">
+                <!-- Links will be populated here -->
+            </div>
+
+            <!-- Quick Actions -->
+            <div class="quick-actions">
+                <button id="exportLinks" class="action-btn">
+                    <span>📤</span> Export
+                </button>
+                <button id="importLinks" class="action-btn">
+                    <span>📥</span> Import
+                </button>
+                <input type="file" id="importFile" accept=".json" style="display: none;">
             </div>
         </div>
 
+        <!-- Reminders Tab -->
+        <div id="remindersTab" class="tab-content">
+            <div class="add-reminder-section">
+                <button id="toggleReminderForm" class="add-btn">
+                    <span>+</span> Add Reminder
+                </button>
+                <form id="addReminderForm" class="add-form hidden">
+                    <input type="text" id="reminderTitle" placeholder="Reminder Title" required>
+                    <textarea id="reminderDescription" placeholder="Description"></textarea>
+                    <input type="datetime-local" id="reminderTime" required>
+                    <select id="reminderPriority">
+                        <option value="low">Low Priority</option>
+                        <option value="medium" selected>Medium Priority</option>
+                        <option value="high">High Priority</option>
+                    </select>
+                    <div class="form-actions">
+                        <button type="submit" class="submit-btn">Add Reminder</button>
+                        <button type="button" id="cancelReminder" class="cancel-btn">Cancel</button>
+                    </div>
+                </form>
+            </div>
+            <div id="remindersList" class="reminders-list">
+                <!-- Reminders will be populated here -->
+            </div>
+        </div>
+
+        <!-- Stats Tab -->
+        <div id="statsTab" class="tab-content">
+            <div class="stats-container">
+                <div class="stat-card">
+                    <h3>Total Links</h3>
+                    <span id="totalLinks" class="stat-number">0</span>
+                </div>
+                <div class="stat-card">
+                    <h3>Most Used Category</h3>
+                    <span id="topCategory" class="stat-text">-</span>
+                </div>
+                <div class="stat-card">
+                    <h3>Active Reminders</h3>
+                    <span id="activeReminders" class="stat-number">0</span>
+                </div>
+                <div class="stat-card">
+                    <h3>Links Clicked Today</h3>
+                    <span id="todayClicks" class="stat-number">0</span>
+                </div>
+            </div>
+            <div class="usage-chart">
+                <h3>Usage This Week</h3>
+                <div id="weeklyChart" class="chart-container">
+                    <!-- Chart will be rendered here -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Settings Modal -->
+        <div id="settingsModal" class="modal hidden">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>Settings</h2>
+                    <button id="closeSettings" class="close-btn">×</button>
+                </div>
+                <div class="modal-body">
+                    <div class="setting-group">
+                        <label>
+                            <input type="checkbox" id="enableNotifications"> 
+                            Enable Desktop Notifications
+                        </label>
+                    </div>
+                    <div class="setting-group">
+                        <label>
+                            <input type="checkbox" id="autoFillForms"> 
+                            Auto-detect Form Fields
+                        </label>
+                    </div>
+                    <div class="setting-group">
+                        <label>
+                            <input type="checkbox" id="showContextMenu"> 
+                            Show Context Menu
+                        </label>
+                    </div>
+                    <div class="setting-group">
+                        <label for="defaultCategory">Default Category:</label>
+                        <select id="defaultCategory">
+                            <option value="personal">Personal</option>
+                            <option value="work">Work</option>
+                            <option value="social">Social Media</option>
+                            <option value="tools">Tools</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </div>
+                    <div class="setting-group">
+                      <button id="testNotification" class="submit-btn" style="width: 100%;">
+                        Test Notification
+                      </button>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button id="saveSettings" class="submit-btn">Save Settings</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Toast Notifications -->
+        <div id="toast" class="toast hidden"></div>
     </div>
+
     <script src="popup.js"></script>
 </body>
-
 </html>
