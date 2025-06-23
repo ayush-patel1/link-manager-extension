@@ -195,4 +195,491 @@ class LinksManager {
       }
     })
   }
+
+  switchTab(tabName) {
+    // Update tab buttons
+    document.querySelectorAll(".tab-btn").forEach((btn) => {
+      btn.classList.remove("active")
+    })
+    document.querySelector(`[data-tab="${tabName}"]`).classList.add("active")
+
+    // Update tab content
+    document.querySelectorAll(".tab-content").forEach((content) => {
+      content.classList.remove("active")
+    })
+    document.getElementById(`${tabName}Tab`).classList.add("active")
+
+    // Update stats when switching to stats tab
+    if (tabName === "stats") {
+      this.updateStats()
+    }
+  }
+
+  toggleTheme() {
+    this.settings.theme = this.settings.theme === "light" ? "dark" : "light"
+    this.applyTheme()
+    this.saveData()
+  }
+
+  applyTheme() {
+    document.body.setAttribute("data-theme", this.settings.theme)
+    const themeIcon = document.querySelector(".theme-icon")
+    themeIcon.textContent = this.settings.theme === "light" ? "🌙" : "☀️"
+  }
+
+  openSettings() {
+    document.getElementById("settingsModal").classList.remove("hidden")
+    this.loadSettingsForm()
+  }
+
+  closeSettings() {
+    document.getElementById("settingsModal").classList.add("hidden")
+  }
+
+  loadSettingsForm() {
+    document.getElementById("enableNotifications").checked = this.settings.enableNotifications
+    document.getElementById("autoFillForms").checked = this.settings.autoFillForms
+    document.getElementById("showContextMenu").checked = this.settings.showContextMenu
+    document.getElementById("defaultCategory").value = this.settings.defaultCategory
+  }
+
+  saveSettings() {
+    this.settings.enableNotifications = document.getElementById("enableNotifications").checked
+    this.settings.autoFillForms = document.getElementById("autoFillForms").checked
+    this.settings.showContextMenu = document.getElementById("showContextMenu").checked
+    this.settings.defaultCategory = document.getElementById("defaultCategory").value
+
+    this.saveData()
+    this.closeSettings()
+    this.showToast("Settings saved successfully!")
+  }
+
+  toggleAddForm() {
+    const form = document.getElementById("addLinkForm")
+    form.classList.toggle("hidden")
+    if (!form.classList.contains("hidden")) {
+      document.getElementById("linkTitle").focus()
+    } else {
+      this.clearAddForm()
+    }
+  }
+
+  toggleReminderForm() {
+    const form = document.getElementById("addReminderForm")
+    form.classList.toggle("hidden")
+    if (!form.classList.contains("hidden")) {
+      document.getElementById("reminderTitle").focus()
+    } else {
+      this.clearReminderForm()
+    }
+  }
+
+  async addLink() {
+    const title = document.getElementById("linkTitle").value.trim()
+    const url = document.getElementById("linkUrl").value.trim()
+    const category = document.getElementById("linkCategory").value
+    const description = document.getElementById("linkDescription").value.trim()
+
+    if (!title || !url || !category) {
+      this.showToast("Please fill in all required fields", "error")
+      return
+    }
+
+    // Validate URL
+    try {
+      new URL(url)
+    } catch {
+      this.showToast("Please enter a valid URL", "error")
+      return
+    }
+
+    const link = {
+      id: Date.now().toString(),
+      title,
+      url,
+      category,
+      description,
+      createdAt: new Date().toISOString(),
+      clickCount: 0,
+    }
+
+    this.links.unshift(link)
+    await this.saveData()
+    this.renderLinks()
+    this.toggleAddForm()
+    this.showToast("Link added successfully!")
+  }
+
+  async addReminder() {
+    const title = document.getElementById("reminderTitle").value.trim()
+    const description = document.getElementById("reminderDescription").value.trim()
+    const time = document.getElementById("reminderTime").value
+    const priority = document.getElementById("reminderPriority").value
+
+    if (!title || !time) {
+      this.showToast("Please fill in all required fields", "error")
+      return
+    }
+
+    const reminderTime = new Date(time)
+    if (reminderTime <= new Date()) {
+      this.showToast("Please select a future date and time", "error")
+      return
+    }
+
+    const reminder = {
+      id: Date.now().toString(),
+      title,
+      description,
+      time: reminderTime.toISOString(),
+      priority,
+      createdAt: new Date().toISOString(),
+      completed: false,
+    }
+
+    this.reminders.unshift(reminder)
+    await this.saveData()
+    this.renderReminders()
+    this.toggleReminderForm()
+
+    // Set the reminder alarm
+    await this.setReminder(reminder)
+  }
+
+  async setReminder(reminder) {
+    try {
+      const reminderTime = new Date(reminder.time).getTime()
+      const now = Date.now()
+
+      if (reminderTime <= now) {
+        this.showToast("Reminder time must be in the future", "error")
+        return
+      }
+
+      // Clear any existing alarm with the same ID
+      await window.chrome.alarms.clear(reminder.id)
+
+      // Create new alarm
+      await window.chrome.alarms.create(reminder.id, {
+        when: reminderTime,
+      })
+
+      console.log(`Reminder set for ${new Date(reminderTime).toLocaleString()}`)
+      this.showToast(`Reminder set for ${new Date(reminderTime).toLocaleString()}`)
+    } catch (error) {
+      console.error("Error setting reminder:", error)
+      this.showToast("Failed to set reminder", "error")
+    }
+  }
+
+  renderLinks() {
+    const container = document.getElementById("linksList")
+    const searchTerm = document.getElementById("searchInput").value.toLowerCase()
+    const categoryFilter = document.getElementById("categoryFilter").value
+
+    let filteredLinks = this.links
+
+    if (searchTerm) {
+      filteredLinks = filteredLinks.filter(
+        (link) =>
+          link.title.toLowerCase().includes(searchTerm) ||
+          link.url.toLowerCase().includes(searchTerm) ||
+          link.description.toLowerCase().includes(searchTerm),
+      )
+    }
+
+    if (categoryFilter) {
+      filteredLinks = filteredLinks.filter((link) => link.category === categoryFilter)
+    }
+
+    if (filteredLinks.length === 0) {
+      container.innerHTML = `
+                <div class="empty-state">
+                    <div class="empty-state-icon">🔗</div>
+                    <div class="empty-state-text">
+                        ${this.links.length === 0 ? "No links added yet" : "No links match your search"}
+                    </div>
+                </div>
+            `
+      return
+    }
+
+    container.innerHTML = filteredLinks
+      .map(
+        (link) => `
+            <div class="link-item" data-id="${link.id}">
+                <div class="link-info">
+                    <div class="link-title">
+                        ${this.getCategoryIcon(link.category)} ${link.title}
+                    </div>
+                    <div class="link-url">${link.url}</div>
+                    ${link.description ? `<div class="link-description">${link.description}</div>` : ""}
+                    <span class="link-category">${link.category}</span>
+                </div>
+                <div class="link-actions">
+                    <button class="action-btn copy-btn" data-action="copy" data-id="${link.id}">
+                        📋 Copy
+                    </button>
+                    <button class="action-btn" data-action="open" data-id="${link.id}">
+                        🔗 Open
+                    </button>
+                    <button class="action-btn edit-btn" data-action="edit" data-id="${link.id}">
+                        ✏️
+                    </button>
+                    <button class="action-btn delete-btn" data-action="delete" data-id="${link.id}">
+                        🗑️
+                    </button>
+                </div>
+            </div>
+        `,
+      )
+      .join("")
+  }
+
+  renderReminders() {
+    const container = document.getElementById("remindersList")
+    const activeReminders = this.reminders.filter((r) => !r.completed)
+
+    if (activeReminders.length === 0) {
+      container.innerHTML = `
+                <div class="empty-state">
+                    <div class="empty-state-icon">⏰</div>
+                    <div class="empty-state-text">No active reminders</div>
+                </div>
+            `
+      return
+    }
+
+    container.innerHTML = activeReminders
+      .map(
+        (reminder) => `
+            <div class="reminder-item ${reminder.priority}-priority" data-id="${reminder.id}">
+                <div class="reminder-title">${reminder.title}</div>
+                <div class="reminder-time">
+                    ${new Date(reminder.time).toLocaleString()}
+                </div>
+                ${reminder.description ? `<div class="reminder-description">${reminder.description}</div>` : ""}
+                <div class="link-actions" style="margin-top: 0.5rem;">
+                    <button class="action-btn" data-action="complete" data-id="${reminder.id}">
+                        ✅ Complete
+                    </button>
+                    <button class="action-btn delete-btn" data-action="delete-reminder" data-id="${reminder.id}">
+                        🗑️ Delete
+                    </button>
+                </div>
+            </div>
+        `,
+      )
+      .join("")
+  }
+
+  updateStats() {
+    document.getElementById("totalLinks").textContent = this.links.length
+    document.getElementById("activeReminders").textContent = this.reminders.filter((r) => !r.completed).length
+    document.getElementById("todayClicks").textContent = this.stats.todayClicks || 0
+
+    // Calculate most used category
+    const categoryCount = {}
+    this.links.forEach((link) => {
+      categoryCount[link.category] = (categoryCount[link.category] || 0) + link.clickCount
+    })
+
+    const topCategory = Object.keys(categoryCount).reduce(
+      (a, b) => (categoryCount[a] > categoryCount[b] ? a : b),
+      "None",
+    )
+
+    document.getElementById("topCategory").textContent =
+      topCategory === "None" ? "None" : topCategory.charAt(0).toUpperCase() + topCategory.slice(1)
+  }
+
+  getCategoryIcon(category) {
+    const icons = {
+      social: "📱",
+      work: "💼",
+      personal: "🏠",
+      tools: "🔧",
+      other: "📎",
+    }
+    return icons[category] || "📎"
+  }
+
+  async copyLink(id) {
+    const link = this.links.find((l) => l.id === id)
+    if (link) {
+      try {
+        // Try using the Clipboard API first
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          await navigator.clipboard.writeText(link.url)
+          this.showToast("Link copied to clipboard!")
+          this.incrementClickCount(id)
+        } else {
+          // Fallback method for older browsers or when clipboard API fails
+          const textArea = document.createElement("textarea")
+          textArea.value = link.url
+          textArea.style.position = "fixed"
+          textArea.style.left = "-999999px"
+          textArea.style.top = "-999999px"
+          document.body.appendChild(textArea)
+          textArea.focus()
+          textArea.select()
+
+          try {
+            const successful = document.execCommand("copy")
+            if (successful) {
+              this.showToast("Link copied to clipboard!")
+              this.incrementClickCount(id)
+            } else {
+              throw new Error("Copy command failed")
+            }
+          } catch (error) {
+            // If all else fails, show the URL in a prompt for manual copying
+            prompt("Copy this link:", link.url)
+            this.incrementClickCount(id)
+          } finally {
+            document.body.removeChild(textArea)
+          }
+        }
+      } catch (error) {
+        console.error("Error copying link:", error)
+        // Fallback: show URL in prompt for manual copying
+        prompt("Copy this link:", link.url)
+        this.incrementClickCount(id)
+      }
+    }
+  }
+
+  async openLink(id) {
+    const link = this.links.find((l) => l.id === id)
+    if (link) {
+      try {
+        await window.chrome.tabs.create({ url: link.url })
+        this.incrementClickCount(id)
+      } catch (error) {
+        console.error("Error opening link:", error)
+      }
+    }
+  }
+
+  async incrementClickCount(id) {
+    const link = this.links.find((l) => l.id === id)
+    if (link) {
+      link.clickCount = (link.clickCount || 0) + 1
+      this.stats.todayClicks = (this.stats.todayClicks || 0) + 1
+      await this.saveData()
+    }
+  }
+
+  async deleteLink(id) {
+    if (confirm("Are you sure you want to delete this link?")) {
+      this.links = this.links.filter((l) => l.id !== id)
+      await this.saveData()
+      this.renderLinks()
+      this.showToast("Link deleted successfully!")
+    }
+  }
+
+  async completeReminder(id) {
+    const reminder = this.reminders.find((r) => r.id === id)
+    if (reminder) {
+      reminder.completed = true
+      await this.saveData()
+      this.renderReminders()
+      this.showToast("Reminder completed!")
+    }
+  }
+
+  async deleteReminder(id) {
+    if (confirm("Are you sure you want to delete this reminder?")) {
+      this.reminders = this.reminders.filter((r) => r.id !== id)
+      await this.saveData()
+      this.renderReminders()
+      this.showToast("Reminder deleted successfully!")
+
+      // Cancel alarm
+      try {
+        await window.chrome.alarms.clear(id)
+      } catch (error) {
+        console.error("Error clearing alarm:", error)
+      }
+    }
+  }
+
+  filterLinks() {
+    this.renderLinks()
+  }
+
+  clearAddForm() {
+    document.getElementById("addLinkForm").reset()
+  }
+
+  clearReminderForm() {
+    document.getElementById("addReminderForm").reset()
+  }
+
+  exportData() {
+    const data = {
+      links: this.links,
+      reminders: this.reminders,
+      settings: this.settings,
+      exportDate: new Date().toISOString(),
+    }
+
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = `links-plus-backup-${new Date().toISOString().split("T")[0]}.json`
+    a.click()
+    URL.revokeObjectURL(url)
+
+    this.showToast("Data exported successfully!")
+  }
+
+  async importData(file) {
+    if (!file) return
+
+    try {
+      const text = await file.text()
+      const data = JSON.parse(text)
+
+      if (data.links && Array.isArray(data.links)) {
+        this.links = [...this.links, ...data.links]
+      }
+
+      if (data.reminders && Array.isArray(data.reminders)) {
+        this.reminders = [...this.reminders, ...data.reminders]
+      }
+
+      if (data.settings) {
+        this.settings = { ...this.settings, ...data.settings }
+      }
+
+      await this.saveData()
+      this.renderLinks()
+      this.renderReminders()
+      this.applyTheme()
+      this.showToast("Data imported successfully!")
+    } catch (error) {
+      console.error("Error importing data:", error)
+      this.showToast("Failed to import data", "error")
+    }
+  }
+
+  showToast(message, type = "success") {
+    const toast = document.getElementById("toast")
+    toast.textContent = message
+    toast.className = `toast ${type}`
+    toast.classList.remove("hidden")
+
+    setTimeout(() => {
+      toast.classList.add("hidden")
+    }, 3000)
+  }
 }
+
+// Initialize the app
+let linksManager
+document.addEventListener("DOMContentLoaded", () => {
+  linksManager = new LinksManager()
+})
