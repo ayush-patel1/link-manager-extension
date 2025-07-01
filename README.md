@@ -65,20 +65,30 @@
 
 <div align="center">
 
-### 📊 **Stats Dashboard**
-*Track your productivity at a glance*
+<table>
+<tr>
+<td align="center" width="33%">
 
-![Stats Dashboard](./ss/stats-dashboard.png)
+### 📊 **Stats Dashboard**
+<img src="./ss/stats-dashboard.png" alt="Stats Dashboard" width="250" height="150">
+
+</td>
+<td align="center" width="33%">
 
 ### ⏰ **Reminders Manager**
-*Never forget important tasks*
+<img src="./ss/reminders-page.png" alt="Reminders Manager" width="250" height="150">
 
-![Reminders Manager](./ss/reminders-page.png)
+</td>
+<td align="center" width="33%">
 
 ### 🔗 **Links Library**
-*Your personal link collection*
+<img src="./ss/links-library.png" alt="Links Library" width="250" height="150">
 
-![Links Library](./ss/links-library.png)
+</td>
+</tr>
+</table>
+
+*Click images to view full size*
 
 </div>
 
@@ -211,5 +221,3 @@ This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) 
 **Made with ❤️ by [Ayush Patel](https://github.com/ayush-patel1)**
 
 </div>
-```
-
