@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🔗 Links++
+# 🔗 Links Manager
 
 ### *A simple yet powerful link manager & reminder extension*
 
