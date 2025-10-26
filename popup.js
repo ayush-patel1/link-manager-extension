@@ -10,6 +10,9 @@ class LinksManager {
       defaultCategory: "personal",
       enableAnimations: true,
       enableLinkPreview: true,
+      aiEnabled: true,
+      autoCategorize: true,
+      smartTags: true,
     }
     this.stats = {
       totalClicks: 0,
@@ -18,6 +21,7 @@ class LinksManager {
     }
     this.draggedItem = null
     this.searchTerm = ""
+    this.aiCache = new Map() // Cache for AI results
 
     this.init()
   }
@@ -31,6 +35,104 @@ class LinksManager {
     this.renderReminders()
     this.updateStats()
     this.applyTheme()
+    this.checkFirstVisit()
+  }
+
+  checkFirstVisit() {
+    // Check if this is the first time opening the extension
+    if (!this.settings.hasSeenWelcome) {
+      this.showWelcomeMessage()
+      this.settings.hasSeenWelcome = true
+      this.saveData()
+    }
+  }
+
+  showWelcomeMessage() {
+    // Create welcome modal
+    const welcomeModal = document.createElement('div')
+    welcomeModal.id = 'welcomeModal'
+    welcomeModal.className = 'modal welcome-modal'
+    welcomeModal.innerHTML = `
+      <div class="modal-content welcome-content">
+        <div class="welcome-header">
+          <div class="welcome-icon">🎉</div>
+          <h2>Welcome to Link Manager!</h2>
+          <p class="welcome-subtitle">Your smart solution for organizing links</p>
+        </div>
+        
+        <div class="welcome-features">
+          <div class="welcome-feature">
+            <span class="feature-icon">🔗</span>
+            <div>
+              <h3>Save & Organize Links</h3>
+              <p>Store all your important links in one place with categories</p>
+            </div>
+          </div>
+          
+          <div class="welcome-feature">
+            <span class="feature-icon">⏰</span>
+            <div>
+              <h3>Set Reminders</h3>
+              <p>Never forget important tasks with smart notifications</p>
+            </div>
+          </div>
+          
+          <div class="welcome-feature">
+            <span class="feature-icon">🏷️</span>
+            <div>
+              <h3>Tag & Search</h3>
+              <p>Find links quickly with tags and powerful search</p>
+            </div>
+          </div>
+          
+          <div class="welcome-feature">
+            <span class="feature-icon">🎨</span>
+            <div>
+              <h3>Drag & Drop</h3>
+              <p>Reorder links easily with smooth animations</p>
+            </div>
+          </div>
+          
+          <div class="welcome-feature">
+            <span class="feature-icon">🩺</span>
+            <div>
+              <h3>Health Check</h3>
+              <p>Monitor if your saved links are still working</p>
+            </div>
+          </div>
+          
+          <div class="welcome-feature">
+            <span class="feature-icon">📊</span>
+            <div>
+              <h3>Track Stats</h3>
+              <p>See your most used links and categories</p>
+            </div>
+          </div>
+        </div>
+        
+        <div class="welcome-footer">
+          <button class="btn btn-primary welcome-btn" id="welcomeStart">
+            Get Started 🚀
+          </button>
+          <p class="welcome-tip">💡 Tip: Click the ➕ button to add your first link!</p>
+        </div>
+      </div>
+    `
+    
+    document.body.appendChild(welcomeModal)
+    
+    // Animate in
+    setTimeout(() => {
+      welcomeModal.classList.add('show')
+    }, 100)
+    
+    // Add event listener to close button
+    document.getElementById('welcomeStart').addEventListener('click', () => {
+      welcomeModal.classList.remove('show')
+      setTimeout(() => {
+        welcomeModal.remove()
+      }, 300)
+    })
   }
 
   async cleanupPastReminders() {
@@ -148,6 +250,15 @@ class LinksManager {
           console.error("Error testing notification:", error)
           this.showToast("Error testing notification", "error")
         }
+      })
+    }
+
+    // Show welcome message
+    const showWelcome = document.getElementById("showWelcome")
+    if (showWelcome) {
+      showWelcome.addEventListener("click", () => {
+        this.showWelcomeMessage()
+        this.closeSettings()
       })
     }
 
@@ -335,6 +446,20 @@ class LinksManager {
     document.getElementById("autoFillForms").checked = this.settings.autoFillForms
     document.getElementById("showContextMenu").checked = this.settings.showContextMenu
     document.getElementById("defaultCategory").value = this.settings.defaultCategory
+    
+    // AI settings
+    const aiEnabledCheckbox = document.getElementById("aiEnabled")
+    if (aiEnabledCheckbox) {
+      aiEnabledCheckbox.checked = this.settings.aiEnabled
+    }
+    const autoCategorizeCheckbox = document.getElementById("autoCategorize")
+    if (autoCategorizeCheckbox) {
+      autoCategorizeCheckbox.checked = this.settings.autoCategorize
+    }
+    const smartTagsCheckbox = document.getElementById("smartTags")
+    if (smartTagsCheckbox) {
+      smartTagsCheckbox.checked = this.settings.smartTags
+    }
   }
 
   saveSettings() {
@@ -342,6 +467,20 @@ class LinksManager {
     this.settings.autoFillForms = document.getElementById("autoFillForms").checked
     this.settings.showContextMenu = document.getElementById("showContextMenu").checked
     this.settings.defaultCategory = document.getElementById("defaultCategory").value
+
+    // AI settings
+    const aiEnabledCheckbox = document.getElementById("aiEnabled")
+    if (aiEnabledCheckbox) {
+      this.settings.aiEnabled = aiEnabledCheckbox.checked
+    }
+    const autoCategorizeCheckbox = document.getElementById("autoCategorize")
+    if (autoCategorizeCheckbox) {
+      this.settings.autoCategorize = autoCategorizeCheckbox.checked
+    }
+    const smartTagsCheckbox = document.getElementById("smartTags")
+    if (smartTagsCheckbox) {
+      this.settings.smartTags = smartTagsCheckbox.checked
+    }
 
     this.saveData()
     this.closeSettings()
@@ -430,22 +569,36 @@ class LinksManager {
         }
       }
     } else {
-      // Add new link
-      const link = {
-        id: Date.now().toString(),
-        title,
-        url,
-        category,
-        description,
-        createdAt: new Date().toISOString(),
-        clickCount: 0,
-      }
+      // Add new link with AI enhancement
+      try {
+        let linkData = {
+          id: Date.now().toString(),
+          title,
+          url,
+          category,
+          description,
+          createdAt: new Date().toISOString(),
+          clickCount: 0,
+        }
 
-      this.links.unshift(link)
-      await this.saveData()
-      this.renderLinks()
-      this.toggleAddForm()
-      this.showToast("Link added successfully!")
+        // Apply AI enhancements
+        if (this.settings.aiEnabled) {
+          linkData = await this.enhanceLinkWithAI(linkData)
+        }
+
+        this.links.unshift(linkData)
+        await this.saveData()
+        this.renderLinks()
+        this.toggleAddForm()
+        this.showToast("✨ Link added successfully!")
+      } catch (error) {
+        if (error.message === 'Duplicate link cancelled') {
+          this.showToast("Link not added", "warning")
+        } else {
+          console.error('Error adding link:', error)
+          this.showToast("Error adding link", "error")
+        }
+      }
     }
   }
 
@@ -1068,6 +1221,312 @@ class LinksManager {
     a.click()
     URL.revokeObjectURL(url)
     this.showToast("Links exported as CSV!", "success")
+  }
+
+  // ===== AI-POWERED FEATURES =====
+
+  // AI-powered smart categorization
+  async aiCategorizeLink(url, title) {
+    if (!this.settings.aiEnabled || !this.settings.autoCategorize) {
+      return this.settings.defaultCategory
+    }
+
+    // Check cache first
+    const cacheKey = `cat_${url}`
+    if (this.aiCache.has(cacheKey)) {
+      return this.aiCache.get(cacheKey)
+    }
+
+    try {
+      // Extract domain and analyze URL patterns
+      const urlObj = new URL(url)
+      const domain = urlObj.hostname.toLowerCase()
+      const path = urlObj.pathname.toLowerCase()
+      const titleLower = title.toLowerCase()
+
+      // AI-like pattern matching with keywords
+      const patterns = {
+        social: ['twitter', 'facebook', 'instagram', 'linkedin', 'reddit', 'tiktok', 'snapchat', 'pinterest', 'social', 'community'],
+        work: ['github', 'gitlab', 'jira', 'slack', 'teams', 'notion', 'asana', 'trello', 'confluence', 'workspace', 'project', 'meeting', 'document', 'spreadsheet'],
+        tools: ['tool', 'generator', 'converter', 'calculator', 'editor', 'utility', 'app', 'extension', 'plugin', 'api', 'dev', 'code'],
+        personal: ['blog', 'recipe', 'fitness', 'health', 'shopping', 'amazon', 'ebay', 'personal', 'hobby', 'game']
+      }
+
+      // Score each category
+      const scores = {}
+      for (const [category, keywords] of Object.entries(patterns)) {
+        scores[category] = 0
+        for (const keyword of keywords) {
+          if (domain.includes(keyword)) scores[category] += 3
+          if (path.includes(keyword)) scores[category] += 2
+          if (titleLower.includes(keyword)) scores[category] += 1
+        }
+      }
+
+      // Get highest scoring category
+      const category = Object.keys(scores).reduce((a, b) => 
+        scores[a] > scores[b] ? a : b
+      )
+
+      // Only use AI suggestion if score is significant
+      const result = scores[category] > 0 ? category : 'other'
+      
+      // Cache the result
+      this.aiCache.set(cacheKey, result)
+      return result
+
+    } catch (error) {
+      console.error('AI categorization error:', error)
+      return 'other'
+    }
+  }
+
+  // AI-powered tag suggestions
+  async aiSuggestTags(url, title, description) {
+    if (!this.settings.aiEnabled || !this.settings.smartTags) {
+      return []
+    }
+
+    const cacheKey = `tags_${url}`
+    if (this.aiCache.has(cacheKey)) {
+      return this.aiCache.get(cacheKey)
+    }
+
+    try {
+      const tags = new Set()
+      const text = `${title} ${description} ${url}`.toLowerCase()
+
+      // Technology tags
+      const techKeywords = {
+        'javascript': ['javascript', 'js', 'node', 'react', 'vue', 'angular'],
+        'python': ['python', 'django', 'flask', 'pandas'],
+        'design': ['design', 'ui', 'ux', 'figma', 'sketch'],
+        'data': ['data', 'analytics', 'sql', 'database'],
+        'ai': ['ai', 'ml', 'machine-learning', 'neural', 'gpt'],
+        'tutorial': ['tutorial', 'guide', 'how-to', 'learn'],
+        'documentation': ['docs', 'documentation', 'api', 'reference'],
+        'video': ['youtube', 'video', 'watch', 'stream'],
+        'article': ['article', 'blog', 'post', 'read'],
+        'resource': ['resource', 'collection', 'awesome'],
+        'important': ['important', 'urgent', 'critical'],
+        'reference': ['reference', 'cheatsheet', 'quick']
+      }
+
+      for (const [tag, keywords] of Object.entries(techKeywords)) {
+        if (keywords.some(keyword => text.includes(keyword))) {
+          tags.add(tag)
+        }
+      }
+
+      const result = Array.from(tags).slice(0, 5) // Limit to 5 tags
+      this.aiCache.set(cacheKey, result)
+      return result
+
+    } catch (error) {
+      console.error('AI tag suggestion error:', error)
+      return []
+    }
+  }
+
+  // AI-powered description generation
+  async aiGenerateDescription(url, title) {
+    if (!this.settings.aiEnabled) {
+      return ''
+    }
+
+    const cacheKey = `desc_${url}`
+    if (this.aiCache.has(cacheKey)) {
+      return this.aiCache.get(cacheKey)
+    }
+
+    try {
+      const urlObj = new URL(url)
+      const domain = urlObj.hostname.replace('www.', '')
+      const path = urlObj.pathname
+
+      // Generate smart description based on patterns
+      let description = ''
+
+      if (domain.includes('github.com')) {
+        const parts = path.split('/').filter(Boolean)
+        if (parts.length >= 2) {
+          description = `GitHub repository: ${parts[0]}/${parts[1]}`
+        }
+      } else if (domain.includes('youtube.com') || domain.includes('youtu.be')) {
+        description = `YouTube video: ${title}`
+      } else if (domain.includes('stackoverflow.com')) {
+        description = `Stack Overflow discussion about ${title}`
+      } else if (title && title.length > 10) {
+        description = `${domain} - ${title.substring(0, 100)}`
+      } else {
+        description = `Resource from ${domain}`
+      }
+
+      this.aiCache.set(cacheKey, description)
+      return description
+
+    } catch (error) {
+      console.error('AI description generation error:', error)
+      return ''
+    }
+  }
+
+  // AI-powered duplicate detection
+  async aiDetectDuplicate(url) {
+    try {
+      const urlObj = new URL(url)
+      const normalizedUrl = `${urlObj.hostname}${urlObj.pathname}`.toLowerCase()
+
+      for (const link of this.links) {
+        const linkUrlObj = new URL(link.url)
+        const linkNormalized = `${linkUrlObj.hostname}${linkUrlObj.pathname}`.toLowerCase()
+
+        // Check for exact match
+        if (normalizedUrl === linkNormalized) {
+          return { isDuplicate: true, existing: link, similarity: 100 }
+        }
+
+        // Check for high similarity
+        const similarity = this.calculateStringSimilarity(normalizedUrl, linkNormalized)
+        if (similarity > 85) {
+          return { isDuplicate: true, existing: link, similarity }
+        }
+      }
+
+      return { isDuplicate: false, existing: null, similarity: 0 }
+
+    } catch (error) {
+      console.error('Duplicate detection error:', error)
+      return { isDuplicate: false, existing: null, similarity: 0 }
+    }
+  }
+
+  // Helper: Calculate string similarity (Levenshtein distance)
+  calculateStringSimilarity(str1, str2) {
+    const longer = str1.length > str2.length ? str1 : str2
+    const shorter = str1.length > str2.length ? str2 : str1
+
+    if (longer.length === 0) return 100
+
+    const editDistance = this.levenshteinDistance(longer, shorter)
+    return Math.round((1 - editDistance / longer.length) * 100)
+  }
+
+  levenshteinDistance(str1, str2) {
+    const matrix = []
+
+    for (let i = 0; i <= str2.length; i++) {
+      matrix[i] = [i]
+    }
+
+    for (let j = 0; j <= str1.length; j++) {
+      matrix[0][j] = j
+    }
+
+    for (let i = 1; i <= str2.length; i++) {
+      for (let j = 1; j <= str1.length; j++) {
+        if (str2.charAt(i - 1) === str1.charAt(j - 1)) {
+          matrix[i][j] = matrix[i - 1][j - 1]
+        } else {
+          matrix[i][j] = Math.min(
+            matrix[i - 1][j - 1] + 1,
+            matrix[i][j - 1] + 1,
+            matrix[i - 1][j] + 1
+          )
+        }
+      }
+    }
+
+    return matrix[str2.length][str1.length]
+  }
+
+  // AI-powered smart search
+  async aiSmartSearch(query) {
+    if (!this.settings.aiEnabled || !query) {
+      return this.links
+    }
+
+    const queryLower = query.toLowerCase()
+    const results = []
+
+    for (const link of this.links) {
+      let score = 0
+      
+      // Exact matches get higher scores
+      if (link.title.toLowerCase().includes(queryLower)) score += 10
+      if (link.url.toLowerCase().includes(queryLower)) score += 5
+      if (link.description && link.description.toLowerCase().includes(queryLower)) score += 7
+      if (link.tags && link.tags.some(tag => tag.toLowerCase().includes(queryLower))) score += 8
+
+      // Fuzzy matching for typos
+      const titleSimilarity = this.calculateStringSimilarity(queryLower, link.title.toLowerCase())
+      if (titleSimilarity > 60) score += titleSimilarity / 10
+
+      // Category match
+      if (link.category.toLowerCase().includes(queryLower)) score += 6
+
+      // Recent links get slight boost
+      const daysSinceCreated = (Date.now() - new Date(link.createdAt).getTime()) / (1000 * 60 * 60 * 24)
+      if (daysSinceCreated < 7) score += 2
+
+      // Frequently clicked links get boost
+      if (link.clickCount > 5) score += Math.min(link.clickCount / 2, 5)
+
+      if (score > 0) {
+        results.push({ link, score })
+      }
+    }
+
+    // Sort by score and return links
+    return results
+      .sort((a, b) => b.score - a.score)
+      .map(r => r.link)
+  }
+
+  // Apply AI enhancements to new link
+  async enhanceLinkWithAI(linkData) {
+    if (!this.settings.aiEnabled) {
+      return linkData
+    }
+
+    this.showToast("🤖 AI analyzing link...", "info")
+
+    // Check for duplicates
+    const duplicateCheck = await this.aiDetectDuplicate(linkData.url)
+    if (duplicateCheck.isDuplicate) {
+      const confirm = window.confirm(
+        `⚠️ Similar link found (${duplicateCheck.similarity}% match):\n"${duplicateCheck.existing.title}"\n\nDo you still want to add this link?`
+      )
+      if (!confirm) {
+        throw new Error('Duplicate link cancelled')
+      }
+    }
+
+    // Auto-categorize if not set or default
+    if (!linkData.category || linkData.category === 'other') {
+      const aiCategory = await this.aiCategorizeLink(linkData.url, linkData.title)
+      if (aiCategory && aiCategory !== 'other') {
+        linkData.category = aiCategory
+        this.showToast(`🤖 AI categorized as: ${aiCategory}`, "success")
+      }
+    }
+
+    // Generate description if empty
+    if (!linkData.description || linkData.description.trim() === '') {
+      const aiDescription = await this.aiGenerateDescription(linkData.url, linkData.title)
+      if (aiDescription) {
+        linkData.description = aiDescription
+      }
+    }
+
+    // Suggest tags
+    const aiTags = await this.aiSuggestTags(linkData.url, linkData.title, linkData.description)
+    if (aiTags.length > 0) {
+      linkData.tags = aiTags
+      this.showToast(`🏷️ AI suggested ${aiTags.length} tags`, "success")
+    }
+
+    return linkData
   }
 }
 
