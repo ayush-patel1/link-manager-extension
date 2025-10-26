@@ -351,10 +351,23 @@ class LinksManager {
   toggleAddForm() {
     const form = document.getElementById("addLinkForm")
     form.classList.toggle("hidden")
+    
     if (!form.classList.contains("hidden")) {
       document.getElementById("linkTitle").focus()
     } else {
       this.clearAddForm()
+      
+      // Reset edit mode
+      delete form.dataset.editingId
+      const formContainer = form.parentElement
+      const formTitle = formContainer.querySelector("h3")
+      if (formTitle) {
+        formTitle.textContent = "Add New Link"
+      }
+      const submitBtn = form.querySelector('button[type="submit"]')
+      if (submitBtn) {
+        submitBtn.textContent = "Add Link"
+      }
     }
   }
 
@@ -373,6 +386,8 @@ class LinksManager {
     const url = document.getElementById("linkUrl").value.trim()
     const category = document.getElementById("linkCategory").value
     const description = document.getElementById("linkDescription").value.trim()
+    const form = document.getElementById("addLinkForm")
+    const editingId = form.dataset.editingId
 
     if (!title || !url || !category) {
       this.showToast("Please fill in all required fields", "error")
@@ -387,21 +402,51 @@ class LinksManager {
       return
     }
 
-    const link = {
-      id: Date.now().toString(),
-      title,
-      url,
-      category,
-      description,
-      createdAt: new Date().toISOString(),
-      clickCount: 0,
-    }
+    if (editingId) {
+      // Update existing link
+      const link = this.links.find((l) => l.id === editingId)
+      if (link) {
+        link.title = title
+        link.url = url
+        link.category = category
+        link.description = description
+        link.updatedAt = new Date().toISOString()
+        
+        await this.saveData()
+        this.renderLinks()
+        this.toggleAddForm()
+        this.showToast("Link updated successfully!")
+        
+        // Reset form
+        delete form.dataset.editingId
+        const formContainer = form.parentElement
+        const formTitle = formContainer.querySelector("h3")
+        if (formTitle) {
+          formTitle.textContent = "Add New Link"
+        }
+        const submitBtn = form.querySelector('button[type="submit"]')
+        if (submitBtn) {
+          submitBtn.textContent = "Add Link"
+        }
+      }
+    } else {
+      // Add new link
+      const link = {
+        id: Date.now().toString(),
+        title,
+        url,
+        category,
+        description,
+        createdAt: new Date().toISOString(),
+        clickCount: 0,
+      }
 
-    this.links.unshift(link)
-    await this.saveData()
-    this.renderLinks()
-    this.toggleAddForm()
-    this.showToast("Link added successfully!")
+      this.links.unshift(link)
+      await this.saveData()
+      this.renderLinks()
+      this.toggleAddForm()
+      this.showToast("Link added successfully!")
+    }
   }
 
   async addReminder() {
@@ -699,6 +744,40 @@ class LinksManager {
       this.renderLinks()
       this.showToast("Link deleted successfully!")
     }
+  }
+
+  editLink(id) {
+    const link = this.links.find((l) => l.id === id)
+    if (!link) return
+
+    // Show the form
+    const form = document.getElementById("addLinkForm")
+    form.classList.remove("hidden")
+
+    // Populate form with link data
+    document.getElementById("linkTitle").value = link.title
+    document.getElementById("linkUrl").value = link.url
+    document.getElementById("linkCategory").value = link.category
+    document.getElementById("linkDescription").value = link.description || ""
+
+    // Change form title
+    const formContainer = form.parentElement
+    const formTitle = formContainer.querySelector("h3")
+    if (formTitle) {
+      formTitle.textContent = "Edit Link"
+    }
+
+    // Change submit button text
+    const submitBtn = form.querySelector('button[type="submit"]')
+    if (submitBtn) {
+      submitBtn.textContent = "Update Link"
+    }
+
+    // Store the ID being edited
+    form.dataset.editingId = id
+
+    // Focus on title
+    document.getElementById("linkTitle").focus()
   }
 
   async completeReminder(id) {
