@@ -27,9 +27,10 @@ class BackgroundManager {
             await this.showNotification(reminder)
           }
 
-          // Mark reminder as completed
-          const updatedReminders = reminders.map((r) => (r.id === reminder.id ? { ...r, completed: true } : r))
+          // Mark reminder as completed and remove it after notification
+          const updatedReminders = reminders.filter((r) => r.id !== reminder.id)
           await chrome.storage.sync.set({ reminders: updatedReminders })
+          console.log("Reminder completed and removed:", reminder.title)
         }
       } catch (error) {
         console.error("Error handling alarm:", error)
@@ -89,17 +90,17 @@ class BackgroundManager {
     // Handle notification button clicks
     chrome.notifications.onButtonClicked.addListener(async (notificationId, buttonIndex) => {
       if (buttonIndex === 0) {
-        // Complete button
-        try {
-          const result = await chrome.storage.sync.get(["reminders"])
-          const reminders = result.reminders || []
-          const updatedReminders = reminders.map((r) => (r.id === notificationId ? { ...r, completed: true } : r))
-          await chrome.storage.sync.set({ reminders: updatedReminders })
-          chrome.notifications.clear(notificationId)
-        } catch (error) {
-          console.error("Error completing reminder:", error)
-        }
+        // Complete button - already handled by alarm, just clear notification
+        chrome.notifications.clear(notificationId)
+      } else if (buttonIndex === 1) {
+        // Dismiss button
+        chrome.notifications.clear(notificationId)
       }
+    })
+
+    // Auto-close notification after it's shown
+    chrome.notifications.onClosed.addListener((notificationId, byUser) => {
+      console.log(`Notification ${notificationId} closed by user: ${byUser}`)
     })
   }
 
@@ -135,21 +136,21 @@ class BackgroundManager {
       type: "basic",
       iconUrl: "icons/icon48.png",
       title: `⏰ Reminder: ${reminder.title}`,
-      message: reminder.description || "You have a reminder!",
+      message: reminder.description || "Your reminder is due!",
       priority: reminder.priority === "high" ? 2 : 1,
       requireInteraction: reminder.priority === "high",
-      buttons: [{ title: "Mark Complete" }, { title: "Dismiss" }],
+      buttons: [{ title: "Dismiss" }],
     }
 
     try {
       await chrome.notifications.create(reminder.id, options)
       console.log("Notification created for reminder:", reminder.title)
 
-      // Auto-clear notification after 30 seconds for non-high priority
+      // Auto-clear notification after 1 minute for non-high priority
       if (reminder.priority !== "high") {
         setTimeout(() => {
           chrome.notifications.clear(reminder.id)
-        }, 30000)
+        }, 60000)
       }
     } catch (error) {
       console.error("Error creating notification:", error)
@@ -214,6 +215,35 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       message: "This is a test notification from Links++!",
     })
     sendResponse({ success: true })
+    return true
+  }
+
+  if (request.action === "createAlarm") {
+    const reminder = request.reminder
+    const reminderTime = new Date(reminder.time).getTime()
+    
+    chrome.alarms.clear(reminder.id).then(() => {
+      chrome.alarms.create(reminder.id, {
+        when: reminderTime,
+      }).then(() => {
+        console.log(`Alarm created for reminder: ${reminder.title} at ${new Date(reminderTime).toLocaleString()}`)
+        sendResponse({ success: true })
+      }).catch((error) => {
+        console.error("Error creating alarm:", error)
+        sendResponse({ success: false, error: error.message })
+      })
+    })
+    return true
+  }
+
+  if (request.action === "clearAlarm") {
+    chrome.alarms.clear(request.alarmId).then((wasCleared) => {
+      console.log(`Alarm ${request.alarmId} cleared:`, wasCleared)
+      sendResponse({ success: true })
+    }).catch((error) => {
+      console.error("Error clearing alarm:", error)
+      sendResponse({ success: false })
+    })
     return true
   }
 })

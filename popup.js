@@ -20,11 +20,38 @@ class LinksManager {
 
   async init() {
     await this.loadData()
+    await this.cleanupPastReminders()
     this.setupEventListeners()
     this.renderLinks()
     this.renderReminders()
     this.updateStats()
     this.applyTheme()
+  }
+
+  async cleanupPastReminders() {
+    const now = new Date().getTime()
+    const initialCount = this.reminders.length
+    
+    // Remove past reminders that are still marked as incomplete
+    this.reminders = this.reminders.filter((reminder) => {
+      const reminderTime = new Date(reminder.time).getTime()
+      return reminderTime > now || reminder.completed
+    })
+    
+    // Also remove old completed reminders (older than 24 hours)
+    const oneDayAgo = now - (24 * 60 * 60 * 1000)
+    this.reminders = this.reminders.filter((reminder) => {
+      if (reminder.completed) {
+        const completedTime = new Date(reminder.time).getTime()
+        return completedTime > oneDayAgo
+      }
+      return true
+    })
+    
+    if (this.reminders.length !== initialCount) {
+      await this.saveData()
+      console.log(`Cleaned up ${initialCount - this.reminders.length} old reminders`)
+    }
   }
 
   async loadData() {
@@ -364,16 +391,20 @@ class LinksManager {
         return
       }
 
-      // Clear any existing alarm with the same ID
-      await chrome.alarms.clear(reminder.id)
-
-      // Create new alarm
-      await chrome.alarms.create(reminder.id, {
-        when: reminderTime,
+      // Send message to background script to create the alarm
+      // This ensures the alarm persists even after popup closes
+      chrome.runtime.sendMessage({
+        action: "createAlarm",
+        reminder: reminder
+      }, (response) => {
+        if (response && response.success) {
+          console.log(`Reminder set for ${new Date(reminderTime).toLocaleString()}`)
+          this.showToast(`Reminder set for ${new Date(reminderTime).toLocaleString()}`)
+        } else {
+          console.error("Failed to create alarm")
+          this.showToast("Failed to set reminder", "error")
+        }
       })
-
-      console.log(`Reminder set for ${new Date(reminderTime).toLocaleString()}`)
-      this.showToast(`Reminder set for ${new Date(reminderTime).toLocaleString()}`)
     } catch (error) {
       console.error("Error setting reminder:", error)
       this.showToast("Failed to set reminder", "error")
@@ -602,14 +633,14 @@ class LinksManager {
       this.reminders = this.reminders.filter((r) => r.id !== id)
       await this.saveData()
       this.renderReminders()
+      this.updateStats()
       this.showToast("Reminder deleted successfully!")
 
-      // Cancel alarm
-      try {
-        await chrome.alarms.clear(id)
-      } catch (error) {
-        console.error("Error clearing alarm:", error)
-      }
+      // Cancel alarm via background script
+      chrome.runtime.sendMessage({
+        action: "clearAlarm",
+        alarmId: id
+      })
     }
   }
 
