@@ -29,7 +29,7 @@ class LinksManager {
 
   async loadData() {
     try {
-      const result = await window.chrome.storage.sync.get(["links", "reminders", "settings", "stats"])
+      const result = await chrome.storage.sync.get(["links", "reminders", "settings", "stats"])
       this.links = result.links || []
       this.reminders = result.reminders || []
       this.settings = { ...this.settings, ...result.settings }
@@ -41,7 +41,7 @@ class LinksManager {
 
   async saveData() {
     try {
-      await window.chrome.storage.sync.set({
+      await chrome.storage.sync.set({
         links: this.links,
         reminders: this.reminders,
         settings: this.settings,
@@ -83,8 +83,8 @@ class LinksManager {
     document.getElementById("testNotification").addEventListener("click", async () => {
       try {
         // Test browser notification permission
-        if (window.Notification.permission === "default") {
-          const permission = await window.Notification.requestPermission()
+        if (Notification.permission === "default") {
+          const permission = await Notification.requestPermission()
           if (permission !== "granted") {
             this.showToast("Notification permission denied", "error")
             return
@@ -92,7 +92,7 @@ class LinksManager {
         }
 
         // Send message to background script to create notification
-        window.chrome.runtime.sendMessage({ action: "testNotification" }, (response) => {
+        chrome.runtime.sendMessage({ action: "testNotification" }, (response) => {
           if (response && response.success) {
             this.showToast("Test notification sent!")
           } else {
@@ -201,13 +201,21 @@ class LinksManager {
     document.querySelectorAll(".tab-btn").forEach((btn) => {
       btn.classList.remove("active")
     })
-    document.querySelector(`[data-tab="${tabName}"]`).classList.add("active")
+    
+    const tabButton = document.querySelector(`[data-tab="${tabName}"]`)
+    if (tabButton) {
+      tabButton.classList.add("active")
+    }
 
     // Update tab content
     document.querySelectorAll(".tab-content").forEach((content) => {
       content.classList.remove("active")
     })
-    document.getElementById(`${tabName}Tab`).classList.add("active")
+    
+    const tabContent = document.getElementById(`${tabName}Tab`)
+    if (tabContent) {
+      tabContent.classList.add("active")
+    }
 
     // Update stats when switching to stats tab
     if (tabName === "stats") {
@@ -357,10 +365,10 @@ class LinksManager {
       }
 
       // Clear any existing alarm with the same ID
-      await window.chrome.alarms.clear(reminder.id)
+      await chrome.alarms.clear(reminder.id)
 
       // Create new alarm
-      await window.chrome.alarms.create(reminder.id, {
+      await chrome.alarms.create(reminder.id, {
         when: reminderTime,
       })
 
@@ -553,7 +561,7 @@ class LinksManager {
     const link = this.links.find((l) => l.id === id)
     if (link) {
       try {
-        await window.chrome.tabs.create({ url: link.url })
+        await chrome.tabs.create({ url: link.url })
         this.incrementClickCount(id)
       } catch (error) {
         console.error("Error opening link:", error)
@@ -598,7 +606,7 @@ class LinksManager {
 
       // Cancel alarm
       try {
-        await window.chrome.alarms.clear(id)
+        await chrome.alarms.clear(id)
       } catch (error) {
         console.error("Error clearing alarm:", error)
       }

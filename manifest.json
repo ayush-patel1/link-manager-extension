@@ -3,7 +3,7 @@
     "name": "Link Manager- Smart Link Manager",
     "version": "1.0.0",
     "description": "Save,manage, and organize your most used Links",
-    "permissions": ["storage", "activeTab"],
+    "permissions": ["storage", "activeTab", "notifications", "alarms", "contextMenus"],
     "host_permissions": ["http://*/*", "https://*/*"],
     "icons": {
         "16": "icons/icon16.png",
