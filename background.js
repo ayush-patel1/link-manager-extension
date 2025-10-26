@@ -7,7 +7,6 @@ class BackgroundManager {
     this.setupAlarmListener()
     this.setupContextMenu()
     this.setupInstallListener()
-    this.setupCommandListener()
     this.setupNotificationListener()
   }
 
@@ -68,14 +67,6 @@ class BackgroundManager {
     chrome.runtime.onInstalled.addListener((details) => {
       if (details.reason === "install") {
         this.showWelcomeNotification()
-      }
-    })
-  }
-
-  setupCommandListener() {
-    chrome.commands.onCommand.addListener((command) => {
-      if (command === "open-popup") {
-        chrome.action.openPopup()
       }
     })
   }

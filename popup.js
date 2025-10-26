@@ -88,99 +88,147 @@ class LinksManager {
     })
 
     // Theme toggle
-    document.getElementById("themeToggle").addEventListener("click", () => {
-      this.toggleTheme()
-    })
+    const themeToggle = document.getElementById("themeToggle")
+    if (themeToggle) {
+      themeToggle.addEventListener("click", () => {
+        this.toggleTheme()
+      })
+    }
 
     // Settings
-    document.getElementById("settingsBtn").addEventListener("click", () => {
-      this.openSettings()
-    })
+    const settingsBtn = document.getElementById("settingsBtn")
+    if (settingsBtn) {
+      settingsBtn.addEventListener("click", () => {
+        this.openSettings()
+      })
+    }
 
-    document.getElementById("closeSettings").addEventListener("click", () => {
-      this.closeSettings()
-    })
+    const closeSettings = document.getElementById("closeSettings")
+    if (closeSettings) {
+      closeSettings.addEventListener("click", () => {
+        this.closeSettings()
+      })
+    }
 
-    document.getElementById("saveSettings").addEventListener("click", () => {
-      this.saveSettings()
-    })
+    const saveSettings = document.getElementById("saveSettings")
+    if (saveSettings) {
+      saveSettings.addEventListener("click", () => {
+        this.saveSettings()
+      })
+    }
 
-    // Add this in the setupEventListeners method, after the saveSettings event listener:
-
-    document.getElementById("testNotification").addEventListener("click", async () => {
-      try {
-        // Test browser notification permission
-        if (Notification.permission === "default") {
-          const permission = await Notification.requestPermission()
-          if (permission !== "granted") {
-            this.showToast("Notification permission denied", "error")
-            return
+    // Test notification
+    const testNotification = document.getElementById("testNotification")
+    if (testNotification) {
+      testNotification.addEventListener("click", async () => {
+        try {
+          // Test browser notification permission
+          if (Notification.permission === "default") {
+            const permission = await Notification.requestPermission()
+            if (permission !== "granted") {
+              this.showToast("Notification permission denied", "error")
+              return
+            }
           }
+
+          // Send message to background script to create notification
+          chrome.runtime.sendMessage({ action: "testNotification" }, (response) => {
+            if (response && response.success) {
+              this.showToast("Test notification sent!")
+            } else {
+              this.showToast("Failed to send test notification", "error")
+            }
+          })
+        } catch (error) {
+          console.error("Error testing notification:", error)
+          this.showToast("Error testing notification", "error")
         }
-
-        // Send message to background script to create notification
-        chrome.runtime.sendMessage({ action: "testNotification" }, (response) => {
-          if (response && response.success) {
-            this.showToast("Test notification sent!")
-          } else {
-            this.showToast("Failed to send test notification", "error")
-          }
-        })
-      } catch (error) {
-        console.error("Error testing notification:", error)
-        this.showToast("Error testing notification", "error")
-      }
-    })
+      })
+    }
 
     // Add link form
-    document.getElementById("toggleAddForm").addEventListener("click", () => {
-      this.toggleAddForm()
-    })
+    const toggleAddForm = document.getElementById("toggleAddForm")
+    if (toggleAddForm) {
+      toggleAddForm.addEventListener("click", () => {
+        this.toggleAddForm()
+      })
+    }
 
-    document.getElementById("addLinkForm").addEventListener("submit", (e) => {
-      e.preventDefault()
-      this.addLink()
-    })
+    const addLinkForm = document.getElementById("addLinkForm")
+    if (addLinkForm) {
+      addLinkForm.addEventListener("submit", (e) => {
+        e.preventDefault()
+        this.addLink()
+      })
+    }
 
-    document.getElementById("cancelAdd").addEventListener("click", () => {
-      this.toggleAddForm()
-    })
+    const cancelAdd = document.getElementById("cancelAdd")
+    if (cancelAdd) {
+      cancelAdd.addEventListener("click", () => {
+        this.toggleAddForm()
+      })
+    }
 
     // Add reminder form
-    document.getElementById("toggleReminderForm").addEventListener("click", () => {
-      this.toggleReminderForm()
-    })
+    const toggleReminderForm = document.getElementById("toggleReminderForm")
+    if (toggleReminderForm) {
+      toggleReminderForm.addEventListener("click", () => {
+        this.toggleReminderForm()
+      })
+    }
 
-    document.getElementById("addReminderForm").addEventListener("submit", (e) => {
-      e.preventDefault()
-      this.addReminder()
-    })
+    const addReminderForm = document.getElementById("addReminderForm")
+    if (addReminderForm) {
+      addReminderForm.addEventListener("submit", (e) => {
+        e.preventDefault()
+        this.addReminder()
+      })
+    }
 
-    document.getElementById("cancelReminder").addEventListener("click", () => {
-      this.toggleReminderForm()
-    })
+    const cancelReminder = document.getElementById("cancelReminder")
+    if (cancelReminder) {
+      cancelReminder.addEventListener("click", () => {
+        this.toggleReminderForm()
+      })
+    }
 
     // Search and filter
-    document.getElementById("searchInput").addEventListener("input", () => {
-      this.filterLinks()
-    })
+    const searchInput = document.getElementById("searchInput")
+    if (searchInput) {
+      searchInput.addEventListener("input", () => {
+        this.filterLinks()
+      })
+    }
 
-    document.getElementById("categoryFilter").addEventListener("change", () => {
-      this.filterLinks()
-    })
+    const categoryFilter = document.getElementById("categoryFilter")
+    if (categoryFilter) {
+      categoryFilter.addEventListener("change", () => {
+        this.filterLinks()
+      })
+    }
 
     // Import/Export
-    document.getElementById("exportLinks").addEventListener("click", () => {
-      this.exportData()
-    })
+    const exportLinks = document.getElementById("exportLinks")
+    if (exportLinks) {
+      exportLinks.addEventListener("click", () => {
+        this.exportData()
+      })
+    }
 
-    document.getElementById("importLinks").addEventListener("click", () => {
-      document.getElementById("importFile").click()
-    })
+    const importLinks = document.getElementById("importLinks")
+    if (importLinks) {
+      importLinks.addEventListener("click", () => {
+        const importFile = document.getElementById("importFile")
+        if (importFile) importFile.click()
+      })
+    }
 
-    document.getElementById("importFile").addEventListener("change", (e) => {
-      this.importData(e.target.files[0])
-    })
+    const importFile = document.getElementById("importFile")
+    if (importFile) {
+      importFile.addEventListener("change", (e) => {
+        this.importData(e.target.files[0])
+      })
+    }
 
     // Event delegation for link actions
     document.getElementById("linksList").addEventListener("click", (e) => {
