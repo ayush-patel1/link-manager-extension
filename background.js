@@ -1,5 +1,6 @@
 class BackgroundManager {
   constructor() {
+    console.log("✅ Background service worker started successfully")
     this.init()
   }
 
@@ -8,6 +9,7 @@ class BackgroundManager {
     this.setupContextMenu()
     this.setupInstallListener()
     this.setupNotificationListener()
+    console.log("✅ All background listeners initialized")
   }
 
   setupAlarmListener() {

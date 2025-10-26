@@ -8,12 +8,16 @@ class LinksManager {
       autoFillForms: true,
       showContextMenu: true,
       defaultCategory: "personal",
+      enableAnimations: true,
+      enableLinkPreview: true,
     }
     this.stats = {
       totalClicks: 0,
       todayClicks: 0,
       weeklyUsage: Array(7).fill(0),
     }
+    this.draggedItem = null
+    this.searchTerm = ""
 
     this.init()
   }
@@ -22,6 +26,7 @@ class LinksManager {
     await this.loadData()
     await this.cleanupPastReminders()
     this.setupEventListeners()
+    this.setupDragAndDrop()
     this.renderLinks()
     this.renderReminders()
     this.updateStats()
@@ -231,27 +236,33 @@ class LinksManager {
     }
 
     // Event delegation for link actions
-    document.getElementById("linksList").addEventListener("click", (e) => {
-      if (e.target.matches("[data-action]")) {
-        const action = e.target.dataset.action
-        const id = e.target.dataset.id
+    const linksList = document.getElementById("linksList")
+    if (linksList) {
+      linksList.addEventListener("click", (e) => {
+        if (e.target.matches("[data-action]")) {
+          const action = e.target.dataset.action
+          const id = e.target.dataset.id
 
-        switch (action) {
-          case "copy":
-            this.copyLink(id)
-            break
-          case "open":
-            this.openLink(id)
-            break
-          case "edit":
-            this.editLink(id)
-            break
-          case "delete":
-            this.deleteLink(id)
-            break
+          switch (action) {
+            case "copy":
+              this.copyLink(id)
+              break
+            case "open":
+              this.openLink(id)
+              break
+            case "health":
+              this.checkLinkHealth(id)
+              break
+            case "edit":
+              this.editLink(id)
+              break
+            case "delete":
+              this.deleteLink(id)
+              break
+          }
         }
-      }
-    })
+      })
+    }
 
     // Event delegation for reminder actions
     document.getElementById("remindersList").addEventListener("click", (e) => {
@@ -461,8 +472,10 @@ class LinksManager {
 
   renderLinks() {
     const container = document.getElementById("linksList")
-    const searchTerm = document.getElementById("searchInput").value.toLowerCase()
-    const categoryFilter = document.getElementById("categoryFilter").value
+    if (!container) return
+    
+    const searchTerm = document.getElementById("searchInput")?.value.toLowerCase() || ""
+    const categoryFilter = document.getElementById("categoryFilter")?.value || ""
 
     let filteredLinks = this.links
 
@@ -471,7 +484,8 @@ class LinksManager {
         (link) =>
           link.title.toLowerCase().includes(searchTerm) ||
           link.url.toLowerCase().includes(searchTerm) ||
-          link.description.toLowerCase().includes(searchTerm),
+          (link.description && link.description.toLowerCase().includes(searchTerm)) ||
+          (link.tags && link.tags.some(tag => tag.toLowerCase().includes(searchTerm)))
       )
     }
 
@@ -494,26 +508,47 @@ class LinksManager {
     container.innerHTML = filteredLinks
       .map(
         (link) => `
-            <div class="link-item" data-id="${link.id}">
+            <div class="link-item" data-id="${link.id}" draggable="true">
                 <div class="link-info">
                     <div class="link-title">
-                        ${this.getCategoryIcon(link.category)} ${link.title}
+                        ${this.getCategoryIcon(link.category)} ${this.highlightSearchTerm(link.title, searchTerm)}
+                        ${link.healthStatus ? `
+                            <span class="link-health ${link.healthStatus}">
+                                ${link.healthStatus === 'healthy' ? '✓' : link.healthStatus === 'checking' ? '⟳' : '✗'}
+                            </span>
+                        ` : ''}
                     </div>
-                    <div class="link-url">${link.url}</div>
-                    ${link.description ? `<div class="link-description">${link.description}</div>` : ""}
-                    <span class="link-category">${link.category}</span>
+                    <div class="link-url">${this.highlightSearchTerm(link.url, searchTerm)}</div>
+                    ${link.description ? `<div class="link-description">${this.highlightSearchTerm(link.description, searchTerm)}</div>` : ""}
+                    <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.5rem;">
+                        <span class="link-category">${link.category}</span>
+                        ${link.tags && link.tags.length > 0 ? `
+                            <div class="link-tags">
+                                ${link.tags.map(tag => `
+                                    <span class="tag">
+                                        ${tag}
+                                        <span class="tag-remove" onclick="linksManager.removeTagFromLink('${link.id}', '${tag}')">×</span>
+                                    </span>
+                                `).join('')}
+                            </div>
+                        ` : ''}
+                        ${link.clickCount ? `<span class="link-stats-badge">👆 ${link.clickCount} clicks</span>` : ''}
+                    </div>
                 </div>
                 <div class="link-actions">
-                    <button class="action-btn copy-btn" data-action="copy" data-id="${link.id}">
-                        📋 Copy
+                    <button class="action-btn copy-btn" data-action="copy" data-id="${link.id}" title="Copy URL">
+                        📋
                     </button>
-                    <button class="action-btn" data-action="open" data-id="${link.id}">
-                        🔗 Open
+                    <button class="action-btn" data-action="open" data-id="${link.id}" title="Open Link">
+                        🔗
                     </button>
-                    <button class="action-btn edit-btn" data-action="edit" data-id="${link.id}">
+                    <button class="action-btn" data-action="health" data-id="${link.id}" title="Check Link Health">
+                        🩺
+                    </button>
+                    <button class="action-btn edit-btn" data-action="edit" data-id="${link.id}" title="Edit">
                         ✏️
                     </button>
-                    <button class="action-btn delete-btn" data-action="delete" data-id="${link.id}">
+                    <button class="action-btn delete-btn" data-action="delete" data-id="${link.id}" title="Delete">
                         🗑️
                     </button>
                 </div>
@@ -755,13 +790,205 @@ class LinksManager {
 
   showToast(message, type = "success") {
     const toast = document.getElementById("toast")
+    if (!toast) return
+    
     toast.textContent = message
     toast.className = `toast ${type}`
     toast.classList.remove("hidden")
+    toast.style.animation = "slideIn 0.3s ease"
 
     setTimeout(() => {
-      toast.classList.add("hidden")
+      toast.style.animation = "fadeOut 0.3s ease"
+      setTimeout(() => {
+        toast.classList.add("hidden")
+      }, 300)
     }, 3000)
+  }
+
+  // NEW ADVANCED FEATURES
+
+  setupDragAndDrop() {
+    const linksList = document.getElementById("linksList")
+    if (!linksList) return
+
+    linksList.addEventListener("dragstart", (e) => {
+      if (e.target.classList.contains("link-item")) {
+        this.draggedItem = e.target
+        e.target.classList.add("dragging")
+        e.dataTransfer.effectAllowed = "move"
+      }
+    })
+
+    linksList.addEventListener("dragend", (e) => {
+      if (e.target.classList.contains("link-item")) {
+        e.target.classList.remove("dragging")
+      }
+    })
+
+    linksList.addEventListener("dragover", (e) => {
+      e.preventDefault()
+      const afterElement = this.getDragAfterElement(linksList, e.clientY)
+      const draggable = document.querySelector(".dragging")
+      if (afterElement == null) {
+        linksList.appendChild(draggable)
+      } else {
+        linksList.insertBefore(draggable, afterElement)
+      }
+    })
+
+    linksList.addEventListener("drop", (e) => {
+      e.preventDefault()
+      this.reorderLinks()
+    })
+  }
+
+  getDragAfterElement(container, y) {
+    const draggableElements = [...container.querySelectorAll(".link-item:not(.dragging)")]
+
+    return draggableElements.reduce((closest, child) => {
+      const box = child.getBoundingClientRect()
+      const offset = y - box.top - box.height / 2
+      if (offset < 0 && offset > closest.offset) {
+        return { offset: offset, element: child }
+      } else {
+        return closest
+      }
+    }, { offset: Number.NEGATIVE_INFINITY }).element
+  }
+
+  reorderLinks() {
+    const linkItems = document.querySelectorAll(".link-item")
+    const newOrder = []
+    linkItems.forEach(item => {
+      const id = item.dataset.id
+      const link = this.links.find(l => l.id === id)
+      if (link) newOrder.push(link)
+    })
+    this.links = newOrder
+    this.saveData()
+    this.showToast("Links reordered!", "success")
+  }
+
+  addTagToLink(linkId, tag) {
+    const link = this.links.find(l => l.id === linkId)
+    if (link && tag.trim()) {
+      if (!link.tags) link.tags = []
+      if (!link.tags.includes(tag.trim())) {
+        link.tags.push(tag.trim())
+        this.saveData()
+        this.renderLinks()
+        this.showToast(`Tag "${tag}" added!`)
+      }
+    }
+  }
+
+  removeTagFromLink(linkId, tag) {
+    const link = this.links.find(l => l.id === linkId)
+    if (link && link.tags) {
+      link.tags = link.tags.filter(t => t !== tag)
+      this.saveData()
+      this.renderLinks()
+      this.showToast(`Tag "${tag}" removed!`)
+    }
+  }
+
+  highlightSearchTerm(text, searchTerm) {
+    if (!searchTerm) return text
+    const regex = new RegExp(`(${searchTerm})`, "gi")
+    return text.replace(regex, '<span class="highlight">$1</span>')
+  }
+
+  async checkLinkHealth(linkId) {
+    const link = this.links.find(l => l.id === linkId)
+    if (!link) return
+
+    link.healthStatus = "checking"
+    this.renderLinks()
+
+    try {
+      const response = await fetch(link.url, { method: "HEAD", mode: "no-cors" })
+      // In no-cors mode, we can't check status, so we assume it's healthy if no error
+      link.healthStatus = "healthy"
+      link.lastChecked = new Date().toISOString()
+    } catch (error) {
+      link.healthStatus = "broken"
+      link.lastChecked = new Date().toISOString()
+    }
+
+    this.saveData()
+    this.renderLinks()
+  }
+
+  async checkAllLinksHealth() {
+    this.showToast("Checking all links...", "info")
+    for (const link of this.links) {
+      await this.checkLinkHealth(link.id)
+      // Small delay to avoid overwhelming
+      await new Promise(resolve => setTimeout(resolve, 200))
+    }
+    this.showToast("Health check complete!", "success")
+  }
+
+  exportToHTML() {
+    let html = `<!DOCTYPE html>
+<html>
+<head>
+  <title>My Links - Exported from Link Manager</title>
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+    h1 { color: #667eea; }
+    .link { padding: 15px; margin: 10px 0; border: 1px solid #e2e8f0; border-radius: 8px; }
+    .link-title { font-weight: bold; font-size: 1.1em; margin-bottom: 5px; }
+    .link-url { color: #667eea; text-decoration: none; }
+    .link-category { background: #667eea; color: white; padding: 2px 8px; border-radius: 4px; font-size: 0.8em; }
+  </style>
+</head>
+<body>
+  <h1>My Saved Links</h1>
+  <p>Exported on ${new Date().toLocaleString()}</p>
+`
+
+    this.links.forEach(link => {
+      html += `
+  <div class="link">
+    <div class="link-title">${link.title}</div>
+    <a href="${link.url}" class="link-url">${link.url}</a>
+    <p>${link.description || ''}</p>
+    <span class="link-category">${link.category}</span>
+    ${link.tags ? link.tags.map(tag => `<span class="link-category">${tag}</span>`).join(' ') : ''}
+  </div>`
+    })
+
+    html += `
+</body>
+</html>`
+
+    const blob = new Blob([html], { type: "text/html" })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = `links-export-${new Date().toISOString().split("T")[0]}.html`
+    a.click()
+    URL.revokeObjectURL(url)
+    this.showToast("Links exported as HTML!", "success")
+  }
+
+  exportToCSV() {
+    let csv = "Title,URL,Category,Description,Tags,Created,Clicks\n"
+    
+    this.links.forEach(link => {
+      const tags = link.tags ? link.tags.join(";") : ""
+      csv += `"${link.title}","${link.url}","${link.category}","${link.description || ""}","${tags}","${link.createdAt}","${link.clickCount || 0}"\n`
+    })
+
+    const blob = new Blob([csv], { type: "text/csv" })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = `links-export-${new Date().toISOString().split("T")[0]}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+    this.showToast("Links exported as CSV!", "success")
   }
 }
 
