@@ -611,7 +611,7 @@ class LinksManager {
           textArea.focus()
           textArea.select()
 
-          try {
+yyyyyyyy          try {
             const successful = document.execCommand("copy")
             if (successful) {
               this.showToast("Link copied to clipboard!")

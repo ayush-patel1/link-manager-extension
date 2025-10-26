@@ -81,7 +81,7 @@ class BackgroundManager {
     // Handle notification button clicks
     chrome.notifications.onButtonClicked.addListener(async (notificationId, buttonIndex) => {
       if (buttonIndex === 0) {
-        // Complete button - already handled by alarm, just clear notification
+        // Dismiss button - already handled by alarm, just clear notification
         chrome.notifications.clear(notificationId)
       } else if (buttonIndex === 1) {
         // Dismiss button
