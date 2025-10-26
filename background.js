@@ -1,5 +1,6 @@
 class BackgroundManager {
   constructor() {
+    console.log("✅ Background service worker started successfully")
     this.init()
   }
 
@@ -7,15 +8,15 @@ class BackgroundManager {
     this.setupAlarmListener()
     this.setupContextMenu()
     this.setupInstallListener()
-    this.setupCommandListener()
     this.setupNotificationListener()
+    console.log("✅ All background listeners initialized")
   }
 
   setupAlarmListener() {
-    window.chrome.alarms.onAlarm.addListener(async (alarm) => {
+    chrome.alarms.onAlarm.addListener(async (alarm) => {
       console.log("Alarm triggered:", alarm.name)
       try {
-        const result = await window.chrome.storage.sync.get(["reminders", "settings"])
+        const result = await chrome.storage.sync.get(["reminders", "settings"])
         const reminders = result.reminders || []
         const settings = result.settings || { enableNotifications: true }
 
@@ -27,9 +28,10 @@ class BackgroundManager {
             await this.showNotification(reminder)
           }
 
-          // Mark reminder as completed
-          const updatedReminders = reminders.map((r) => (r.id === reminder.id ? { ...r, completed: true } : r))
-          await window.chrome.storage.sync.set({ reminders: updatedReminders })
+          // Mark reminder as completed and remove it after notification
+          const updatedReminders = reminders.filter((r) => r.id !== reminder.id)
+          await chrome.storage.sync.set({ reminders: updatedReminders })
+          console.log("Reminder completed and removed:", reminder.title)
         }
       } catch (error) {
         console.error("Error handling alarm:", error)
@@ -38,74 +40,66 @@ class BackgroundManager {
   }
 
   setupContextMenu() {
-    window.chrome.runtime.onInstalled.addListener(() => {
-      window.chrome.contextMenus.create({
+    chrome.runtime.onInstalled.addListener(() => {
+      chrome.contextMenus.create({
         id: "addToLinksPlus",
         title: "Add to Links++",
         contexts: ["link", "page"],
       })
 
-      window.chrome.contextMenus.create({
+      chrome.contextMenus.create({
         id: "openLinksPlus",
         title: "Open Links++",
         contexts: ["all"],
       })
     })
 
-    window.chrome.contextMenus.onClicked.addListener(async (info, tab) => {
+    chrome.contextMenus.onClicked.addListener(async (info, tab) => {
       if (info.menuItemId === "addToLinksPlus") {
         const url = info.linkUrl || info.pageUrl
         const title = info.selectionText || tab.title
         await this.addLinkFromContext(url, title)
       } else if (info.menuItemId === "openLinksPlus") {
-        window.chrome.action.openPopup()
+        chrome.action.openPopup()
       }
     })
   }
 
   setupInstallListener() {
-    window.chrome.runtime.onInstalled.addListener((details) => {
+    chrome.runtime.onInstalled.addListener((details) => {
       if (details.reason === "install") {
         this.showWelcomeNotification()
       }
     })
   }
 
-  setupCommandListener() {
-    window.chrome.commands.onCommand.addListener((command) => {
-      if (command === "open-popup") {
-        window.chrome.action.openPopup()
-      }
-    })
-  }
-
   setupNotificationListener() {
     // Handle notification clicks
-    window.chrome.notifications.onClicked.addListener((notificationId) => {
-      window.chrome.action.openPopup()
-      window.chrome.notifications.clear(notificationId)
+    chrome.notifications.onClicked.addListener((notificationId) => {
+      chrome.action.openPopup()
+      chrome.notifications.clear(notificationId)
     })
 
     // Handle notification button clicks
-    window.chrome.notifications.onButtonClicked.addListener(async (notificationId, buttonIndex) => {
+    chrome.notifications.onButtonClicked.addListener(async (notificationId, buttonIndex) => {
       if (buttonIndex === 0) {
-        // Complete button
-        try {
-          const result = await window.chrome.storage.sync.get(["reminders"])
-          const reminders = result.reminders || []
-          const updatedReminders = reminders.map((r) => (r.id === notificationId ? { ...r, completed: true } : r))
-          await window.chrome.storage.sync.set({ reminders: updatedReminders })
-          window.chrome.notifications.clear(notificationId)
-        } catch (error) {
-          console.error("Error completing reminder:", error)
-        }
+        // Dismiss button - already handled by alarm, just clear notification
+        chrome.notifications.clear(notificationId)
+      } else if (buttonIndex === 1) {
+        // Dismiss button
+        chrome.notifications.clear(notificationId)
       }
+    })
+
+    // Auto-close notification after it's shown
+    chrome.notifications.onClosed.addListener((notificationId, byUser) => {
+      console.log(`Notification ${notificationId} closed by user: ${byUser}`)
     })
   }
 
   async addLinkFromContext(url, title) {
     try {
-      const result = await window.chrome.storage.sync.get(["links"])
+      const result = await chrome.storage.sync.get(["links"])
       const links = result.links || []
 
       const newLink = {
@@ -119,7 +113,7 @@ class BackgroundManager {
       }
 
       links.unshift(newLink)
-      await window.chrome.storage.sync.set({ links })
+      await chrome.storage.sync.set({ links })
 
       await this.showSimpleNotification({
         title: "Link Added!",
@@ -135,21 +129,21 @@ class BackgroundManager {
       type: "basic",
       iconUrl: "icons/icon48.png",
       title: `⏰ Reminder: ${reminder.title}`,
-      message: reminder.description || "You have a reminder!",
+      message: reminder.description || "Your reminder is due!",
       priority: reminder.priority === "high" ? 2 : 1,
       requireInteraction: reminder.priority === "high",
-      buttons: [{ title: "Mark Complete" }, { title: "Dismiss" }],
+      buttons: [{ title: "Dismiss" }],
     }
 
     try {
-      await window.chrome.notifications.create(reminder.id, options)
+      await chrome.notifications.create(reminder.id, options)
       console.log("Notification created for reminder:", reminder.title)
 
-      // Auto-clear notification after 30 seconds for non-high priority
+      // Auto-clear notification after 1 minute for non-high priority
       if (reminder.priority !== "high") {
         setTimeout(() => {
-          window.chrome.notifications.clear(reminder.id)
-        }, 30000)
+          chrome.notifications.clear(reminder.id)
+        }, 60000)
       }
     } catch (error) {
       console.error("Error creating notification:", error)
@@ -158,7 +152,7 @@ class BackgroundManager {
 
   async showSimpleNotification({ title, message }) {
     try {
-      await window.chrome.notifications.create({
+      await chrome.notifications.create({
         type: "basic",
         iconUrl: "icons/icon48.png",
         title: title,
@@ -170,7 +164,7 @@ class BackgroundManager {
   }
 
   showWelcomeNotification() {
-    window.chrome.notifications.create("welcome", {
+    chrome.notifications.create("welcome", {
       type: "basic",
       iconUrl: "icons/icon48.png",
       title: "Welcome to Links++!",
@@ -183,37 +177,66 @@ class BackgroundManager {
 new BackgroundManager()
 
 // Handle extension icon click
-window.chrome.action.onClicked.addListener(() => {
-  window.chrome.action.openPopup()
+chrome.action.onClicked.addListener(() => {
+  chrome.action.openPopup()
 })
 
 // Message handling for content script communication
-window.chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === "getLinks") {
-    window.chrome.storage.sync.get(["links"]).then((result) => {
+    chrome.storage.sync.get(["links"]).then((result) => {
       sendResponse({ links: result.links || [] })
     })
     return true // Keep message channel open for async response
   }
 
   if (request.action === "addLink") {
-    window.chrome.storage.sync.get(["links"]).then(async (result) => {
+    chrome.storage.sync.get(["links"]).then(async (result) => {
       const links = result.links || []
       links.unshift(request.link)
-      await window.chrome.storage.sync.set({ links })
+      await chrome.storage.sync.set({ links })
       sendResponse({ success: true })
     })
     return true
   }
 
   if (request.action === "testNotification") {
-    window.chrome.notifications.create("test", {
+    chrome.notifications.create("test", {
       type: "basic",
       iconUrl: "icons/icon48.png",
       title: "Test Notification",
       message: "This is a test notification from Links++!",
     })
     sendResponse({ success: true })
+    return true
+  }
+
+  if (request.action === "createAlarm") {
+    const reminder = request.reminder
+    const reminderTime = new Date(reminder.time).getTime()
+    
+    chrome.alarms.clear(reminder.id).then(() => {
+      chrome.alarms.create(reminder.id, {
+        when: reminderTime,
+      }).then(() => {
+        console.log(`Alarm created for reminder: ${reminder.title} at ${new Date(reminderTime).toLocaleString()}`)
+        sendResponse({ success: true })
+      }).catch((error) => {
+        console.error("Error creating alarm:", error)
+        sendResponse({ success: false, error: error.message })
+      })
+    })
+    return true
+  }
+
+  if (request.action === "clearAlarm") {
+    chrome.alarms.clear(request.alarmId).then((wasCleared) => {
+      console.log(`Alarm ${request.alarmId} cleared:`, wasCleared)
+      sendResponse({ success: true })
+    }).catch((error) => {
+      console.error("Error clearing alarm:", error)
+      sendResponse({ success: false })
+    })
     return true
   }
 })
